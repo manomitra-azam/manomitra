@@ -1,23 +1,24 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
+import meditationMusic from '../sounds/meditation.mp3'
 
 /* ── Constants ──────────────────────────────────────────── */
 const DURATIONS = [
-  { label: '5 min',  seconds: 5 * 60 },
+  { label: '5 min', seconds: 5 * 60 },
   { label: '10 min', seconds: 10 * 60 },
   { label: '15 min', seconds: 15 * 60 },
 ]
 
-const CIRCLE_R        = 96
-const CIRCLE_CX       = 120
-const CIRCLE_CY       = 120
-const CIRCUMFERENCE   = 2 * Math.PI * CIRCLE_R   // ≈ 603.19
+const CIRCLE_R = 96
+const CIRCLE_CX = 120
+const CIRCLE_CY = 120
+const CIRCUMFERENCE = 2 * Math.PI * CIRCLE_R   // ≈ 603.19
 
 const NAV = [
-  { label: 'Home',     to: '/',             icon: HomeIcon },
-  { label: 'Mood',     to: '/mood-records', icon: MoodIcon },
-  { label: 'Meditate', to: '/meditate',     icon: MeditateIcon },
-  { label: 'Chat',     to: '/chat',         icon: ChatIcon },
+  { label: 'Home', to: '/', icon: HomeIcon },
+  { label: 'Mood', to: '/mood-records', icon: MoodIcon },
+  { label: 'Meditate', to: '/meditate', icon: MeditateIcon },
+  { label: 'Chat', to: '/chat', icon: ChatIcon },
 ]
 
 /* ── Helpers ────────────────────────────────────────────── */
@@ -33,14 +34,24 @@ export default function MeditationTimer() {
   const location = useLocation()
 
   const [durationIdx, setDurationIdx] = useState(0)
-  const [timeLeft,    setTimeLeft]    = useState(DURATIONS[0].seconds)
-  const [running,     setRunning]     = useState(false)
-  const [finished,    setFinished]    = useState(false)
+  const [timeLeft, setTimeLeft] = useState(DURATIONS[0].seconds)
+  const [running, setRunning] = useState(false)
+  const [finished, setFinished] = useState(false)
+  const [musicOn, setMusicOn] = useState(true)
 
   const intervalRef = useRef(null)
+  const audioRef = useRef(null)
   const totalSeconds = DURATIONS[durationIdx].seconds
-  const progress     = timeLeft / totalSeconds               // 1 → 0
-  const dashOffset   = CIRCUMFERENCE * (1 - progress)       // 0 → full
+  const progress = timeLeft / totalSeconds               // 1 → 0
+  const dashOffset = CIRCUMFERENCE * (1 - progress)       // 0 → full
+
+  useEffect(() => {
+    return () => { 
+      if (audioRef.current) {
+        audioRef.current.pause() 
+      }
+    }
+  }, [])
 
   /* ── Timer tick ─────────────────────────────────────────── */
   useEffect(() => {
@@ -69,6 +80,10 @@ export default function MeditationTimer() {
     setTimeLeft(DURATIONS[idx].seconds)
     setRunning(false)
     setFinished(false)
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+    }
   }
 
   /* ── Reset ──────────────────────────────────────────────── */
@@ -77,12 +92,33 @@ export default function MeditationTimer() {
     setTimeLeft(DURATIONS[durationIdx].seconds)
     setRunning(false)
     setFinished(false)
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+    }
   }
 
   /* ── Toggle begin / pause ───────────────────────────────── */
   function handleToggle() {
     if (finished) { handleReset(); return }
-    setRunning((r) => !r)
+    
+    if (!running) {
+      if (!audioRef.current) {
+        const audio = new Audio(meditationMusic);
+        audio.loop = true;
+        audio.volume = 0.5;
+        audioRef.current = audio;
+      }
+      if (musicOn) {
+        audioRef.current.play().catch(err => console.log(err));
+      }
+      setRunning(true);
+    } else {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      setRunning(false);
+    }
   }
 
   const btnLabel = finished ? 'Session Complete 🎉' : running ? 'Pause Session' : 'Begin Session'
@@ -101,7 +137,7 @@ export default function MeditationTimer() {
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
             <path d="M15 19l-7-7 7-7" stroke="#2D2D2D" strokeWidth="2.2"
-                  strokeLinecap="round" strokeLinejoin="round"/>
+              strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <span className="text-sm font-medium" style={{ color: '#2D2D2D' }}>Back</span>
         </button>
@@ -126,6 +162,25 @@ export default function MeditationTimer() {
               transition: 'filter 0.6s ease',
             }}
           >
+            {/* Music Toggle */}
+            <button
+              onClick={() => {
+                if (audioRef.current) {
+                  if (musicOn) {
+                    audioRef.current.pause();
+                  } else if (running) {
+                    audioRef.current.play().catch(e => console.log(e));
+                  }
+                }
+                setMusicOn(!musicOn);
+              }}
+              className="absolute text-xl transition-transform active:scale-95 z-10"
+              style={{ top: 0, right: 0, color: '#7C9E87' }}
+              aria-label="Toggle music"
+            >
+              {musicOn ? '🔊' : '🔇'}
+            </button>
+
             <svg
               width="240" height="240"
               viewBox="0 0 240 240"
@@ -294,9 +349,9 @@ function HomeIcon({ active }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
       <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H5a1 1 0 01-1-1V9.5z"
-            stroke={c} strokeWidth="2" strokeLinejoin="round"
-            fill={active ? '#7C9E87' : 'none'} fillOpacity={active ? 0.15 : 0}/>
-      <path d="M9 21V12h6v9" stroke={c} strokeWidth="2" strokeLinecap="round"/>
+        stroke={c} strokeWidth="2" strokeLinejoin="round"
+        fill={active ? '#7C9E87' : 'none'} fillOpacity={active ? 0.15 : 0} />
+      <path d="M9 21V12h6v9" stroke={c} strokeWidth="2" strokeLinecap="round" />
     </svg>
   )
 }
@@ -305,10 +360,10 @@ function MoodIcon({ active }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
       <circle cx="12" cy="12" r="9" stroke={c} strokeWidth="2"
-              fill={active ? '#7C9E87' : 'none'} fillOpacity={active ? 0.1 : 0}/>
-      <path d="M8.5 14.5s1 2 3.5 2 3.5-2 3.5-2" stroke={c} strokeWidth="2" strokeLinecap="round"/>
-      <circle cx="9"  cy="10" r="1.2" fill={c}/>
-      <circle cx="15" cy="10" r="1.2" fill={c}/>
+        fill={active ? '#7C9E87' : 'none'} fillOpacity={active ? 0.1 : 0} />
+      <path d="M8.5 14.5s1 2 3.5 2 3.5-2 3.5-2" stroke={c} strokeWidth="2" strokeLinecap="round" />
+      <circle cx="9" cy="10" r="1.2" fill={c} />
+      <circle cx="15" cy="10" r="1.2" fill={c} />
     </svg>
   )
 }
@@ -316,9 +371,9 @@ function MeditateIcon({ active }) {
   const c = active ? '#7C9E87' : '#BBBBBB'
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="5" r="2" stroke={c} strokeWidth="2"/>
-      <path d="M5 13c2-3 3.5-4 7-4s5 1 7 4"  stroke={c} strokeWidth="2" strokeLinecap="round"/>
-      <path d="M3 17c3-2 5-2 9-2s6 0 9 2"    stroke={c} strokeWidth="2" strokeLinecap="round"/>
+      <circle cx="12" cy="5" r="2" stroke={c} strokeWidth="2" />
+      <path d="M5 13c2-3 3.5-4 7-4s5 1 7 4" stroke={c} strokeWidth="2" strokeLinecap="round" />
+      <path d="M3 17c3-2 5-2 9-2s6 0 9 2" stroke={c} strokeWidth="2" strokeLinecap="round" />
     </svg>
   )
 }
@@ -327,9 +382,9 @@ function ChatIcon({ active }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
       <path d="M20 2H4a1 1 0 00-1 1v13a1 1 0 001 1h3l3 4 3-4h7a1 1 0 001-1V3a1 1 0 00-1-1z"
-            stroke={c} strokeWidth="2" strokeLinejoin="round"
-            fill={active ? '#7C9E87' : 'none'} fillOpacity={active ? 0.1 : 0}/>
-      <path d="M8 9h8M8 13h5" stroke={c} strokeWidth="2" strokeLinecap="round"/>
+        stroke={c} strokeWidth="2" strokeLinejoin="round"
+        fill={active ? '#7C9E87' : 'none'} fillOpacity={active ? 0.1 : 0} />
+      <path d="M8 9h8M8 13h5" stroke={c} strokeWidth="2" strokeLinecap="round" />
     </svg>
   )
 }

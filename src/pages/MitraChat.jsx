@@ -1,33 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 
-/* ── Seed conversation ──────────────────────────────────── */
-const SEED_MESSAGES = [
-  {
-    id: 1, from: 'mitra',
-    text: "Hi! I'm Mitra, your mental wellness friend. How are you feeling today? 😊",
-    time: '19:10',
-  },
-  {
-    id: 2, from: 'user',
-    text: 'Feeling a bit stressed lately',
-    time: '19:11',
-  },
-  {
-    id: 3, from: 'mitra',
-    text: "I hear you. Stress can feel really heavy sometimes. Would you like to talk about what's been on your mind? 🌿",
-    time: '19:11',
-  },
-]
-
-/* ── Mitra auto-replies (round-robin) ───────────────────── */
-const AUTO_REPLIES = [
-  "That makes a lot of sense. You're not alone in feeling this way. 💚",
-  "Thank you for sharing that with me. Take a deep breath — one moment at a time. 🌿",
-  "It's okay to feel this way. Being aware of your emotions is already a brave step. 😊",
-  "I'm here for you. Would it help to try a short breathing exercise together?",
-  "You're doing really well just by talking about it. What else is on your mind?",
-]
+/* ── Initial State ────────────────────────────────────────── */
 
 const NAV = [
   { label: 'Home',     to: '/',             icon: HomeIcon },
@@ -36,15 +10,54 @@ const NAV = [
   { label: 'Chat',     to: '/chat',         icon: ChatIcon },
 ]
 
+/* ── API Integration ──────────────────────────────────────── */
+const sendToGroq = async (userMessage, conversationHistory) => {
+  const response = await fetch(
+    'https://api.groq.com/openai/v1/chat/completions',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [
+          {
+            role: "system",
+            content: "You are Mitra, a warm and empathetic mental wellness companion for Indian users. Speak like a caring close friend, not a doctor. Keep responses to 2-3 sentences. Never give medical advice."
+          },
+          ...conversationHistory,
+          {
+            role: "user",
+            content: userMessage
+          }
+        ],
+        max_tokens: 150,
+        temperature: 0.7
+      })
+    }
+  );
+  const data = await response.json();
+  return data?.choices?.[0]?.message?.content 
+    || "Mitra is resting, try again 🌿";
+};
+
 /* ── Component ──────────────────────────────────────────── */
 export default function MitraChat() {
   const navigate  = useNavigate()
   const location  = useLocation()
 
-  const [messages, setMessages] = useState(SEED_MESSAGES)
+  const [messages, setMessages] = useState([
+    {
+      id: 1,
+      text: "Hi! I'm Mitra, your mental wellness friend. How are you feeling today? 😊",
+      from: 'mitra',
+      time: `${String(new Date().getHours()).padStart(2,'0')}:${String(new Date().getMinutes()).padStart(2,'0')}`
+    }
+  ]);
   const [input,    setInput]    = useState('')
   const [typing,   setTyping]   = useState(false)
-  const replyIdx  = useRef(0)
   const bottomRef = useRef(null)
   const inputRef  = useRef(null)
 
@@ -53,32 +66,49 @@ export default function MitraChat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, typing])
 
-  function handleSend() {
+  async function handleSend() {
     const text = input.trim()
-    if (!text) return
+    if (!text || typing) return
 
     const now = new Date()
     const time = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
 
     /* Add user message */
-    setMessages((prev) => [
-      ...prev,
-      { id: Date.now(), from: 'user', text, time },
-    ])
+    const userMsg = { id: Date.now(), from: 'user', text, time }
+    setMessages((prev) => [...prev, userMsg])
     setInput('')
-    inputRef.current?.focus()
-
-    /* Show typing indicator, then Mitra replies */
     setTyping(true)
-    setTimeout(() => {
-      setTyping(false)
-      const reply = AUTO_REPLIES[replyIdx.current % AUTO_REPLIES.length]
-      replyIdx.current += 1
+
+    try {
+      const conversationHistory = messages
+        .filter(msg => msg.id !== 1)
+        .map(msg => ({
+          role: msg.from === 'user' ? 'user' : 'assistant',
+          content: msg.text
+        }));
+
+      const reply = await sendToGroq(text, conversationHistory);
+
+      const replyNow = new Date()
+      const replyTime = `${String(replyNow.getHours()).padStart(2,'0')}:${String(replyNow.getMinutes()).padStart(2,'0')}`
+
       setMessages((prev) => [
         ...prev,
-        { id: Date.now() + 1, from: 'mitra', text: reply, time },
+        { id: Date.now() + 1, from: 'mitra', text: reply, time: replyTime },
       ])
-    }, 1400)
+    } catch (err) {
+      console.log('Groq error:', err)
+      console.error('Groq API Error:', err)
+      const replyNow = new Date()
+      const replyTime = `${String(replyNow.getHours()).padStart(2,'0')}:${String(replyNow.getMinutes()).padStart(2,'0')}`
+      setMessages((prev) => [
+        ...prev,
+        { id: Date.now() + 1, from: 'mitra', text: "Mitra is resting, try again in a moment 🌿", time: replyTime },
+      ])
+    } finally {
+      setTyping(false)
+      setTimeout(() => inputRef.current?.focus(), 100)
+    }
   }
 
   function handleKey(e) {
@@ -204,11 +234,11 @@ export default function MitraChat() {
           />
           <button
             onClick={handleSend}
-            disabled={!input.trim()}
+            disabled={!input.trim() || typing}
             className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 transition-all duration-200 active:scale-90"
             style={{
-              backgroundColor: input.trim() ? '#7C9E87' : '#C8D8CC',
-              boxShadow: input.trim() ? '0 4px 14px rgba(124,158,135,0.40)' : 'none',
+              backgroundColor: input.trim() && !typing ? '#7C9E87' : '#C8D8CC',
+              boxShadow: input.trim() && !typing ? '0 4px 14px rgba(124,158,135,0.40)' : 'none',
             }}
             aria-label="Send message"
           >
