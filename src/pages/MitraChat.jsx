@@ -4,14 +4,17 @@ import { useNavigate, useLocation, Link } from 'react-router-dom'
 /* ── Initial State ────────────────────────────────────────── */
 
 const NAV = [
-  { label: 'Home',     to: '/',             icon: HomeIcon },
-  { label: 'Mood',     to: '/mood-records', icon: MoodIcon },
-  { label: 'Meditate', to: '/meditate',     icon: MeditateIcon },
-  { label: 'Chat',     to: '/chat',         icon: ChatIcon },
+  { label: 'Home', to: '/', icon: HomeIcon },
+  { label: 'Mood', to: '/mood-records', icon: MoodIcon },
+  { label: 'Meditate', to: '/meditate', icon: MeditateIcon },
+  { label: 'Chat', to: '/chat', icon: ChatIcon },
 ]
 
 /* ── API Integration ──────────────────────────────────────── */
 const sendToGroq = async (userMessage, conversationHistory) => {
+
+  console.log("VITE IS SEEING THIS KEY:", import.meta.env.VITE_GROQ_API_KEY);
+
   const response = await fetch(
     'https://api.groq.com/openai/v1/chat/completions',
     {
@@ -22,44 +25,48 @@ const sendToGroq = async (userMessage, conversationHistory) => {
       },
       body: JSON.stringify({
         model: "llama-3.1-8b-instant",
+        temperature: 0.6, // Lowered to keep the AI grounded, calm, and focused
         messages: [
           {
             role: "system",
-            content: "You are Mitra, a warm and empathetic mental wellness companion for Indian users. Speak like a caring close friend, not a doctor. Keep responses to 2-3 sentences. Never give medical advice."
+            content: `You are Mitra, a professional, empathetic, and clinical mental wellness companion for the Manomitra platform. 
+      
+      STRICT THERAPEUTIC RULES:
+      1. CLINICAL BOUNDARIES: Maintain a warm but professional distance. NEVER use casual, familial, or overly familiar terms (e.g., absolutely no "beta", "bro", "dear", "sweetheart").
+      2. VALIDATE, DON'T DISMISS: Never use toxic positivity (e.g., never say "don't be sad" or "everything will be fine"). Instead, validate their pain (e.g., "It is completely understandable that you feel this way").
+      3. SOCRATIC QUESTIONING: Do not offer unprompted life advice. Guide the user to explore their own feelings using gentle, open-ended questions (e.g., "Where do you feel that heaviness the most?").
+      4. NO DIAGNOSES: You are a supportive guide, not a doctor. Never attempt to diagnose a medical condition.
+      5. LANGUAGE MIRRORING: You must seamlessly match the user's language. If they speak English, reply in English. If they speak Hindi, reply in Hindi. If they use conversational Hinglish (e.g., "mujhe low feel ho raha hai"), reply in comforting, professional Hinglish.
+      6. CONCISE: Keep responses to 1-3 short sentences. Let the user do most of the talking.`
           },
-          ...conversationHistory,
-          {
-            role: "user",
-            content: userMessage
-          }
-        ],
-        max_tokens: 150,
-        temperature: 0.7
+          ...conversationHistory, // This keeps the memory of the chat
+          { role: "user", content: userMessage }
+        ]
       })
     }
   );
   const data = await response.json();
-  return data?.choices?.[0]?.message?.content 
+  return data?.choices?.[0]?.message?.content
     || "Mitra is resting, try again 🌿";
 };
 
 /* ── Component ──────────────────────────────────────────── */
 export default function MitraChat() {
-  const navigate  = useNavigate()
-  const location  = useLocation()
+  const navigate = useNavigate()
+  const location = useLocation()
 
   const [messages, setMessages] = useState([
     {
       id: 1,
       text: "Hi! I'm Mitra, your mental wellness friend. How are you feeling today? 😊",
       from: 'mitra',
-      time: `${String(new Date().getHours()).padStart(2,'0')}:${String(new Date().getMinutes()).padStart(2,'0')}`
+      time: `${String(new Date().getHours()).padStart(2, '0')}:${String(new Date().getMinutes()).padStart(2, '0')}`
     }
   ]);
-  const [input,    setInput]    = useState('')
-  const [typing,   setTyping]   = useState(false)
+  const [input, setInput] = useState('')
+  const [typing, setTyping] = useState(false)
   const bottomRef = useRef(null)
-  const inputRef  = useRef(null)
+  const inputRef = useRef(null)
 
   /* Auto-scroll to latest message */
   useEffect(() => {
@@ -71,7 +78,7 @@ export default function MitraChat() {
     if (!text || typing) return
 
     const now = new Date()
-    const time = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
+    const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 
     /* Add user message */
     const userMsg = { id: Date.now(), from: 'user', text, time }
@@ -90,7 +97,7 @@ export default function MitraChat() {
       const reply = await sendToGroq(text, conversationHistory);
 
       const replyNow = new Date()
-      const replyTime = `${String(replyNow.getHours()).padStart(2,'0')}:${String(replyNow.getMinutes()).padStart(2,'0')}`
+      const replyTime = `${String(replyNow.getHours()).padStart(2, '0')}:${String(replyNow.getMinutes()).padStart(2, '0')}`
 
       setMessages((prev) => [
         ...prev,
@@ -100,7 +107,7 @@ export default function MitraChat() {
       console.log('Groq error:', err)
       console.error('Groq API Error:', err)
       const replyNow = new Date()
-      const replyTime = `${String(replyNow.getHours()).padStart(2,'0')}:${String(replyNow.getMinutes()).padStart(2,'0')}`
+      const replyTime = `${String(replyNow.getHours()).padStart(2, '0')}:${String(replyNow.getMinutes()).padStart(2, '0')}`
       setMessages((prev) => [
         ...prev,
         { id: Date.now() + 1, from: 'mitra', text: "Mitra is resting, try again in a moment 🌿", time: replyTime },
@@ -131,7 +138,7 @@ export default function MitraChat() {
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
             <path d="M15 19l-7-7 7-7" stroke="#2D2D2D" strokeWidth="2.2"
-                  strokeLinecap="round" strokeLinejoin="round"/>
+              strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
 
@@ -244,9 +251,9 @@ export default function MitraChat() {
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
               <path d="M22 2L11 13" stroke="white" strokeWidth="2.2"
-                    strokeLinecap="round" strokeLinejoin="round"/>
+                strokeLinecap="round" strokeLinejoin="round" />
               <path d="M22 2L15 22 11 13 2 9l20-7z" stroke="white" strokeWidth="2.2"
-                    strokeLinecap="round" strokeLinejoin="round"/>
+                strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
         </div>
@@ -305,8 +312,8 @@ function MessageBubble({ msg }) {
           className="px-4 py-3 text-sm leading-relaxed"
           style={{
             backgroundColor: isMitra ? '#7C9E87' : '#FFFFFF',
-            color:           isMitra ? '#FFFFFF' : '#2D2D2D',
-            borderRadius:    isMitra
+            color: isMitra ? '#FFFFFF' : '#2D2D2D',
+            borderRadius: isMitra
               ? '16px 16px 16px 4px'
               : '16px 16px 4px 16px',
             boxShadow: isMitra
@@ -330,9 +337,9 @@ function HomeIcon({ active }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
       <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H5a1 1 0 01-1-1V9.5z"
-            stroke={c} strokeWidth="2" strokeLinejoin="round"
-            fill={active ? '#7C9E87' : 'none'} fillOpacity={active ? 0.15 : 0}/>
-      <path d="M9 21V12h6v9" stroke={c} strokeWidth="2" strokeLinecap="round"/>
+        stroke={c} strokeWidth="2" strokeLinejoin="round"
+        fill={active ? '#7C9E87' : 'none'} fillOpacity={active ? 0.15 : 0} />
+      <path d="M9 21V12h6v9" stroke={c} strokeWidth="2" strokeLinecap="round" />
     </svg>
   )
 }
@@ -341,10 +348,10 @@ function MoodIcon({ active }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
       <circle cx="12" cy="12" r="9" stroke={c} strokeWidth="2"
-              fill={active ? '#7C9E87' : 'none'} fillOpacity={active ? 0.1 : 0}/>
-      <path d="M8.5 14.5s1 2 3.5 2 3.5-2 3.5-2" stroke={c} strokeWidth="2" strokeLinecap="round"/>
-      <circle cx="9"  cy="10" r="1.2" fill={c}/>
-      <circle cx="15" cy="10" r="1.2" fill={c}/>
+        fill={active ? '#7C9E87' : 'none'} fillOpacity={active ? 0.1 : 0} />
+      <path d="M8.5 14.5s1 2 3.5 2 3.5-2 3.5-2" stroke={c} strokeWidth="2" strokeLinecap="round" />
+      <circle cx="9" cy="10" r="1.2" fill={c} />
+      <circle cx="15" cy="10" r="1.2" fill={c} />
     </svg>
   )
 }
@@ -352,9 +359,9 @@ function MeditateIcon({ active }) {
   const c = active ? '#7C9E87' : '#BBBBBB'
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="5" r="2" stroke={c} strokeWidth="2"/>
-      <path d="M5 13c2-3 3.5-4 7-4s5 1 7 4"  stroke={c} strokeWidth="2" strokeLinecap="round"/>
-      <path d="M3 17c3-2 5-2 9-2s6 0 9 2"    stroke={c} strokeWidth="2" strokeLinecap="round"/>
+      <circle cx="12" cy="5" r="2" stroke={c} strokeWidth="2" />
+      <path d="M5 13c2-3 3.5-4 7-4s5 1 7 4" stroke={c} strokeWidth="2" strokeLinecap="round" />
+      <path d="M3 17c3-2 5-2 9-2s6 0 9 2" stroke={c} strokeWidth="2" strokeLinecap="round" />
     </svg>
   )
 }
@@ -363,9 +370,9 @@ function ChatIcon({ active }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
       <path d="M20 2H4a1 1 0 00-1 1v13a1 1 0 001 1h3l3 4 3-4h7a1 1 0 001-1V3a1 1 0 00-1-1z"
-            stroke={c} strokeWidth="2" strokeLinejoin="round"
-            fill={active ? '#7C9E87' : 'none'} fillOpacity={active ? 0.1 : 0}/>
-      <path d="M8 9h8M8 13h5" stroke={c} strokeWidth="2" strokeLinecap="round"/>
+        stroke={c} strokeWidth="2" strokeLinejoin="round"
+        fill={active ? '#7C9E87' : 'none'} fillOpacity={active ? 0.1 : 0} />
+      <path d="M8 9h8M8 13h5" stroke={c} strokeWidth="2" strokeLinecap="round" />
     </svg>
   )
 }
